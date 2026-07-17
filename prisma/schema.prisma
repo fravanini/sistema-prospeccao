@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Marca {
+  id           Int         @id @default(autoincrement())
+  nome         String
+  site         String?
+  instagram    String?
+  categoria    String      @default("Outra")
+  porte        String?
+  origem       String?
+  notas        String?
+  fazPubli     Boolean     @default(false)
+  rodaAnuncios Boolean     @default(false)
+  temEcommerce Boolean     @default(false)
+  jaInteragiu  Boolean     @default(false)
+  naoContatar  Boolean     @default(false)
+  status       String      @default("PESQUISADA")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  contatos     Contato[]
+  interacoes   Interacao[]
+}
+
+model Contato {
+  id         Int         @id @default(autoincrement())
+  marcaId    Int
+  marca      Marca       @relation(fields: [marcaId], references: [id], onDelete: Cascade)
+  nome       String
+  cargo      String?
+  email      String?
+  fonteEmail String?
+  verificado Boolean     @default(false)
+  linkedin   String?
+  createdAt  DateTime    @default(now())
+  interacoes Interacao[]
+}
+
+model Campanha {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  pitchBase String?
+  periodo   String?
+  ativa     Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Template {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  etapa     String   @default("INICIAL")
+  assunto   String
+  corpo     String
+  createdAt DateTime @default(now())
+}
+
+model Interacao {
+  id        Int      @id @default(autoincrement())
+  marcaId   Int
+  marca     Marca    @relation(fields: [marcaId], references: [id], onDelete: Cascade)
+  contatoId Int?
+  contato   Contato? @relation(fields: [contatoId], references: [id], onDelete: SetNull)
+  tipo      String
+  assunto   String?
+  corpo     String?
+  resultado String?
+  data      DateTime @default(now())
+}
+
+model Config {
+  chave String @id
+  valor String
+}
