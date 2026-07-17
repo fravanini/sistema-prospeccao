@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import { nomeParaEmail, normalizarSite, rasparSite, ResultadoScrape } from "./scraper";
+import {
+  ATOR_HASHTAG,
+  ATOR_PERFIL,
+  MencaoRankeada,
+  mapearPerfil,
+  ranquearMencoes,
+  rodarAtor,
+} from "./apify";
 
 function texto(fd: FormData, campo: string): string {
   return String(fd.get(campo) ?? "").trim();
@@ -479,6 +487,171 @@ export async function enriquecerMarca(id: number) {
   }
   revalidarTudo();
   revalidatePath(`/marcas/${id}`);
+}
+
+// ---------- Descoberta via Apify (Instagram sem tocar na sua conta) ----------
+
+export interface ResultadoGarimpo {
+  ok: boolean;
+  erro?: string;
+  posts: number;
+  mencoes: MencaoRankeada[];
+}
+
+export async function garimparHashtags(
+  _estadoAnterior: ResultadoGarimpo | null,
+  fd: FormData
+): Promise<ResultadoGarimpo> {
+  const config = await lerConfig();
+  const token = config["apify_api_token"]?.trim();
+  if (!token) {
+    return { ok: false, erro: "configure o token da API do Apify nas Configurações", posts: 0, mencoes: [] };
+  }
+
+  const hashtags = texto(fd, "hashtags")
+    .split(/[\s,;]+/)
+    .map((h) => h.replace(/^#/, "").trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 3);
+  if (hashtags.length === 0) {
+    return { ok: false, erro: "informe ao menos uma hashtag", posts: 0, mencoes: [] };
+  }
+
+  const porHashtag = Math.max(10, Math.min(50, Number(fd.get("limite")) || 30));
+  const res = await rodarAtor(ATOR_HASHTAG, { hashtags, resultsLimit: porHashtag }, token);
+  if ("erro" in res) return { ok: false, erro: res.erro, posts: 0, mencoes: [] };
+
+  return { ok: true, posts: res.itens.length, mencoes: ranquearMencoes(res.itens).slice(0, 40) };
+}
+
+export async function importarPerfisApify(
+  _estadoAnterior: ResumoDescoberta[] | null,
+  fd: FormData
+): Promise<ResumoDescoberta[]> {
+  const config = await lerConfig();
+  const token = config["apify_api_token"]?.trim();
+  if (!token) {
+    return [
+      {
+        site: "—",
+        ok: false,
+        erro: "configure o token da API do Apify nas Configurações",
+        novosContatos: 0,
+        avisos: [],
+      },
+    ];
+  }
+
+  const usernames = texto(fd, "usernames")
+    .split(/[\s,;]+/)
+    .map((u) => u.replace(/^@/, "").trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 20);
+  if (usernames.length === 0) return [];
+
+  const res = await rodarAtor(ATOR_PERFIL, { usernames }, token);
+  if ("erro" in res) {
+    return [{ site: "Apify", ok: false, erro: res.erro, novosContatos: 0, avisos: [] }];
+  }
+
+  const hunterApiKey = config["hunter_api_key"]?.trim() || undefined;
+  const resumos: ResumoDescoberta[] = [];
+  const encontrados = new Set<string>();
+
+  for (const item of res.itens) {
+    const perfil = mapearPerfil(item);
+    if (!perfil) continue;
+    encontrados.add(perfil.username);
+    const handle = "@" + perfil.username;
+
+    let marca = await prisma.marca.findFirst({
+      where: { instagram: handle },
+      include: { contatos: true },
+    });
+    if (!marca) {
+      marca = await prisma.marca.create({
+        data: {
+          nome: perfil.nome ?? handle,
+          instagram: handle,
+          site: perfil.site ?? null,
+          origem: "Descoberta via Apify (Instagram)",
+          notas: perfil.bio ?? null,
+        },
+        include: { contatos: true },
+      });
+    } else if (!marca.site && perfil.site) {
+      await prisma.marca.update({ where: { id: marca.id }, data: { site: perfil.site } });
+    }
+
+    let novosContatos = 0;
+    const avisos: string[] = [];
+
+    if (perfil.email && !marca.contatos.some((c) => c.email === perfil.email)) {
+      const { nome, cargo } = nomeParaEmail({ email: perfil.email, fonte: "Perfil do Instagram (público)" });
+      await prisma.contato.create({
+        data: {
+          marcaId: marca.id,
+          nome,
+          cargo,
+          email: perfil.email,
+          fonteEmail: "Perfil do Instagram (público)",
+        },
+      });
+      novosContatos++;
+    }
+
+    await prisma.interacao.create({
+      data: {
+        marcaId: marca.id,
+        tipo: "NOTA",
+        resultado: `Importado do Instagram via Apify: ${handle}${
+          perfil.seguidores ? `, ${perfil.seguidores.toLocaleString("pt-BR")} seguidores` : ""
+        }${perfil.site ? `, site na bio: ${perfil.site}` : ", sem site na bio"}.`,
+      },
+    });
+
+    // Encadeia com o scraper de site usando o link da bio
+    if (perfil.site) {
+      const scrape = await rasparSite(perfil.site, { hunterApiKey });
+      if ("erro" in scrape) {
+        avisos.push(`site da bio inacessível: ${scrape.erro}`);
+      } else {
+        const resumoSite = await salvarDescoberta(scrape, marca.id);
+        novosContatos += resumoSite.novosContatos;
+        avisos.push(...resumoSite.avisos);
+        resumos.push({ ...resumoSite, nome: marca.nome, novosContatos, avisos });
+        continue;
+      }
+    }
+
+    if (novosContatos > 0 && marca.status === "PESQUISADA") {
+      await prisma.marca.update({ where: { id: marca.id }, data: { status: "CONTATO_ENCONTRADO" } });
+    }
+    resumos.push({
+      site: perfil.site ?? handle,
+      ok: true,
+      marcaId: marca.id,
+      nome: marca.nome,
+      novosContatos,
+      instagram: handle,
+      avisos,
+    });
+  }
+
+  for (const u of usernames) {
+    if (!encontrados.has(u)) {
+      resumos.push({
+        site: "@" + u,
+        ok: false,
+        erro: "perfil não retornado pelo Apify (inexistente ou privado)",
+        novosContatos: 0,
+        avisos: [],
+      });
+    }
+  }
+
+  revalidarTudo();
+  return resumos;
 }
 
 // ---------- Configurações ----------

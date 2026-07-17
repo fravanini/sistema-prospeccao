@@ -96,6 +96,11 @@ export const CONFIG_PADRAO: Record<string, { label: string; valor: string; ajuda
     valor: "",
     ajuda: "Plano gratuito: 25 buscas/mês — usada na Descoberta para achar e-mails nominais",
   },
+  apify_api_token: {
+    label: "Token da API do Apify (opcional)",
+    valor: "",
+    ajuda: "Plano gratuito: US$ 5/mês em créditos — usado no garimpo de publis e importação de perfis do Instagram",
+  },
 };
 
 export const VARIAVEIS_TEMPLATE: { chave: string; descricao: string }[] = [
