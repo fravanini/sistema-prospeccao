@@ -14,6 +14,12 @@ metas) está em **[PLANO.md](./PLANO.md)**. Este app é a Fase 1 do plano: o MVP
 - **Cadastro de marcas** com sinais de compra (já faz publi? roda anúncios?) que geram um
   **score de prioridade (0–8)** — prospecte primeiro quem já compra
 - **Importação em massa por CSV**
+- **Descoberta automática de contatos** — cole os sites das marcas e o app visita as páginas
+  de contato/parcerias, extrai e-mails, @ do Instagram, WhatsApp e CNPJ, consulta os dados
+  públicos da Receita Federal (BrasilAPI: e-mail cadastral e sócios) e, com a chave gratuita
+  do Hunter.io configurada, busca e-mails nominais do domínio. Marcas e contatos são criados
+  sozinhos, sem duplicar. *O módulo não raspa o Instagram — isso viola os termos da Meta e
+  arriscaria a conta.*
 - **Contatos por marca** com fonte e verificação do e-mail
 - **Gerador de mensagens** com templates e variáveis ({{contato}}, {{marca}}, {{gancho}},
   {{metricas}}...), preview editável, botão "Abrir no Gmail" já preenchido e registro do
@@ -45,6 +51,7 @@ e comece a cadastrar marcas.
 | `npm run seed` | carrega templates da cadência e campanha de exemplo (idempotente) |
 | `npm run setup` | migra o banco + gera o client Prisma + seed |
 | `npm run e2e` | teste de ponta a ponta no navegador (requer banco recém-criado e `npm start` rodando) |
+| `npm run e2e:descoberta` | teste do módulo de descoberta com APIs simuladas (ver cabeçalho do script) |
 
 ## Stack
 
@@ -66,4 +73,5 @@ local, `prisma/dev.db` — fora do git).
 
 - **Fase 2:** envio pelo app via Gmail API, fila do dia com follow-ups automáticos
 - **Fase 3:** geração de gancho com IA, métricas avançadas
-- **Fase 4:** deploy gratuito (Vercel + Supabase) e integração com Hunter/Snov via API
+- **Fase 4:** deploy gratuito (Vercel + Supabase) e integração com Snov via API
+  (a integração com Hunter.io já está na Descoberta)

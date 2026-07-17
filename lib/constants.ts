@@ -91,6 +91,11 @@ export const CONFIG_PADRAO: Record<string, { label: string; valor: string; ajuda
     valor: "",
     ajuda: "Nome, @perfil, link do mídia kit",
   },
+  hunter_api_key: {
+    label: "Chave da API do Hunter.io (opcional)",
+    valor: "",
+    ajuda: "Plano gratuito: 25 buscas/mês — usada na Descoberta para achar e-mails nominais",
+  },
 };
 
 export const VARIAVEIS_TEMPLATE: { chave: string; descricao: string }[] = [

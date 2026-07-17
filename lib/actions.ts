@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
+import { nomeParaEmail, normalizarSite, rasparSite, ResultadoScrape } from "./scraper";
 
 function texto(fd: FormData, campo: string): string {
   return String(fd.get(campo) ?? "").trim();
@@ -318,6 +319,166 @@ export async function registrarInteracaoForm(fd: FormData) {
     tipo: texto(fd, "tipo") || "NOTA",
     resultado: opcional(fd, "resultado"),
   });
+}
+
+// ---------- Descoberta automática (scraping de fontes públicas) ----------
+
+export interface ResumoDescoberta {
+  site: string;
+  ok: boolean;
+  erro?: string;
+  marcaId?: number;
+  nome?: string;
+  novosContatos: number;
+  instagram?: string;
+  cnpj?: string;
+  razaoSocial?: string;
+  avisos: string[];
+}
+
+const MAX_SITES_POR_RODADA = 10;
+
+async function salvarDescoberta(res: ResultadoScrape, marcaIdExistente?: number): Promise<ResumoDescoberta> {
+  const hostname = new URL(res.site).hostname.replace(/^www\./, "");
+
+  let marca =
+    marcaIdExistente !== undefined
+      ? await prisma.marca.findUnique({ where: { id: marcaIdExistente }, include: { contatos: true } })
+      : await prisma.marca.findFirst({
+          where: { site: { contains: hostname } },
+          include: { contatos: true },
+        });
+
+  const nome = res.titulo ?? res.nomeFantasia ?? res.razaoSocial ?? hostname;
+
+  if (!marca) {
+    marca = await prisma.marca.create({
+      data: {
+        nome,
+        site: res.site,
+        instagram: res.instagram ?? null,
+        origem: "Descoberta automática (site)",
+      },
+      include: { contatos: true },
+    });
+  } else {
+    await prisma.marca.update({
+      where: { id: marca.id },
+      data: {
+        site: marca.site ?? res.site,
+        instagram: marca.instagram ?? res.instagram ?? null,
+      },
+    });
+  }
+
+  let novosContatos = 0;
+  for (const e of res.emails) {
+    if (marca.contatos.some((c) => c.email === e.email)) continue;
+    const { nome: nomeContato, cargo } = nomeParaEmail(e);
+    await prisma.contato.create({
+      data: { marcaId: marca.id, nome: nomeContato, cargo, email: e.email, fonteEmail: e.fonte },
+    });
+    novosContatos++;
+  }
+  for (const socio of res.socios.slice(0, 3)) {
+    if (marca.contatos.some((c) => c.nome.toLowerCase() === socio.nome.toLowerCase())) continue;
+    await prisma.contato.create({
+      data: {
+        marcaId: marca.id,
+        nome: socio.nome,
+        cargo: `${socio.qualificacao} (Receita Federal)`,
+        fonteEmail: "Quadro societário (BrasilAPI)",
+      },
+    });
+    novosContatos++;
+  }
+
+  const partes = [
+    `Descoberta automática em ${res.site}: ${res.emails.length} e-mail(s), ${res.socios.length} sócio(s).`,
+  ];
+  if (res.razaoSocial) partes.push(`Razão social: ${res.razaoSocial}.`);
+  if (res.cnpj) partes.push(`CNPJ: ${res.cnpj}.`);
+  if (res.whatsapp) partes.push(`WhatsApp: ${res.whatsapp}.`);
+  if (res.telefoneRFB) partes.push(`Telefone (RFB): ${res.telefoneRFB}.`);
+  partes.push(`Páginas: ${res.paginasVisitadas.join(", ")}`);
+  await prisma.interacao.create({
+    data: { marcaId: marca.id, tipo: "NOTA", resultado: partes.join(" ") },
+  });
+
+  if (novosContatos > 0 && marca.status === "PESQUISADA") {
+    await prisma.marca.update({ where: { id: marca.id }, data: { status: "CONTATO_ENCONTRADO" } });
+  }
+
+  return {
+    site: res.site,
+    ok: true,
+    marcaId: marca.id,
+    nome: marca.nome,
+    novosContatos,
+    instagram: res.instagram,
+    cnpj: res.cnpj,
+    razaoSocial: res.razaoSocial,
+    avisos: res.avisos,
+  };
+}
+
+export async function descobrirMarcas(
+  _estadoAnterior: ResumoDescoberta[] | null,
+  fd: FormData
+): Promise<ResumoDescoberta[]> {
+  const linhas = texto(fd, "sites")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (linhas.length === 0) return [];
+
+  const config = await lerConfig();
+  const hunterApiKey = config["hunter_api_key"]?.trim() || undefined;
+
+  const resumos: ResumoDescoberta[] = [];
+  for (const linha of linhas.slice(0, MAX_SITES_POR_RODADA)) {
+    if (!normalizarSite(linha)) {
+      resumos.push({ site: linha, ok: false, erro: "URL inválida", novosContatos: 0, avisos: [] });
+      continue;
+    }
+    const res = await rasparSite(linha, { hunterApiKey });
+    if ("erro" in res) {
+      resumos.push({ site: res.site, ok: false, erro: res.erro, novosContatos: 0, avisos: [] });
+    } else {
+      resumos.push(await salvarDescoberta(res));
+    }
+  }
+  for (const linha of linhas.slice(MAX_SITES_POR_RODADA)) {
+    resumos.push({
+      site: linha,
+      ok: false,
+      erro: `limite de ${MAX_SITES_POR_RODADA} sites por rodada — rode de novo com o restante`,
+      novosContatos: 0,
+      avisos: [],
+    });
+  }
+
+  revalidarTudo();
+  return resumos;
+}
+
+export async function enriquecerMarca(id: number) {
+  const marca = await prisma.marca.findUnique({ where: { id } });
+  if (!marca?.site) return;
+  const config = await lerConfig();
+  const res = await rasparSite(marca.site, {
+    hunterApiKey: config["hunter_api_key"]?.trim() || undefined,
+  });
+  if ("erro" in res) {
+    await prisma.interacao.create({
+      data: { marcaId: id, tipo: "NOTA", resultado: `Descoberta automática falhou: ${res.erro}.` },
+    });
+  } else {
+    await salvarDescoberta(res, id);
+  }
+  revalidarTudo();
+  revalidatePath(`/marcas/${id}`);
 }
 
 // ---------- Configurações ----------

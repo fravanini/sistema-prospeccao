@@ -12,6 +12,7 @@ import {
   atualizarContato,
   atualizarMarca,
   criarContato,
+  enriquecerMarca,
   excluirContato,
   excluirMarca,
   moverMarca,
@@ -114,7 +115,24 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ id:
       </form>
 
       <section className="card">
-        <h2 className="mb-3 text-lg font-semibold">Contatos</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Contatos</h2>
+          {marca.site ? (
+            <form action={enriquecerMarca.bind(null, marca.id)}>
+              <button
+                type="submit"
+                className="btn-secondary !px-3 !py-1.5 text-xs"
+                title="Visita o site da marca, extrai e-mails/Instagram/CNPJ e consulta os dados públicos da Receita"
+              >
+                🔎 Buscar contatos do site
+              </button>
+            </form>
+          ) : (
+            <p className="text-xs text-slate-400">
+              Cadastre o site da marca para usar a busca automática de contatos.
+            </p>
+          )}
+        </div>
         {marca.contatos.length === 0 && (
           <p className="mb-3 text-sm text-slate-400">
             Nenhum contato ainda. Procure no site da marca (página de parcerias/embaixadores) e no
