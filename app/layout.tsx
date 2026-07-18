@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 const LINKS = [
   { href: "/", label: "Pipeline", icone: "📊" },
+  { href: "/fila", label: "Fila do dia", icone: "⏰" },
   { href: "/marcas", label: "Marcas", icone: "🏷️" },
   { href: "/descoberta", label: "Descoberta", icone: "🔎" },
   { href: "/mensagens", label: "Mensagens", icone: "✉️" },

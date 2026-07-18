@@ -11,7 +11,8 @@
     "setup": "prisma migrate deploy && prisma generate && node prisma/seed.mjs",
     "e2e": "node scripts/e2e.mjs",
     "e2e:descoberta": "node scripts/e2e-descoberta.mjs",
-    "e2e:apify": "node scripts/e2e-apify.mjs"
+    "e2e:apify": "node scripts/e2e-apify.mjs",
+    "e2e:gmail": "node scripts/e2e-gmail.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

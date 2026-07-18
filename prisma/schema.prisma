@@ -61,16 +61,17 @@ model Template {
 }
 
 model Interacao {
-  id        Int      @id @default(autoincrement())
-  marcaId   Int
-  marca     Marca    @relation(fields: [marcaId], references: [id], onDelete: Cascade)
-  contatoId Int?
-  contato   Contato? @relation(fields: [contatoId], references: [id], onDelete: SetNull)
-  tipo      String
-  assunto   String?
-  corpo     String?
-  resultado String?
-  data      DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  marcaId       Int
+  marca         Marca    @relation(fields: [marcaId], references: [id], onDelete: Cascade)
+  contatoId     Int?
+  contato       Contato? @relation(fields: [contatoId], references: [id], onDelete: SetNull)
+  tipo          String
+  assunto       String?
+  corpo         String?
+  resultado     String?
+  gmailThreadId String?
+  data          DateTime @default(now())
 }
 
 model Config {

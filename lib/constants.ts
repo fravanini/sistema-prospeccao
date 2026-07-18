@@ -101,6 +101,21 @@ export const CONFIG_PADRAO: Record<string, { label: string; valor: string; ajuda
     valor: "",
     ajuda: "Plano gratuito: US$ 5/mês em créditos — usado no garimpo de publis e importação de perfis do Instagram",
   },
+  limite_diario: {
+    label: "Limite de envios por dia",
+    valor: "15",
+    ajuda: "Proteja a entregabilidade: comece com 15/dia e suba aos poucos até ~30",
+  },
+  gmail_client_id: {
+    label: "Google OAuth Client ID",
+    valor: "",
+    ajuda: "Crie em console.cloud.google.com → APIs → Credenciais (tipo Web, redirect http://localhost:3000/api/gmail/callback)",
+  },
+  gmail_client_secret: {
+    label: "Google OAuth Client Secret",
+    valor: "",
+    ajuda: "Do mesmo credencial OAuth do Google Cloud",
+  },
 };
 
 export const VARIAVEIS_TEMPLATE: { chave: string; descricao: string }[] = [

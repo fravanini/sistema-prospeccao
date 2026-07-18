@@ -12,6 +12,8 @@ import {
   ranquearMencoes,
   rodarAtor,
 } from "./apify";
+import { enviarGmail, gmailConectado, threadTemResposta } from "./gmail";
+import { enviosDeHoje } from "./fila";
 
 function texto(fd: FormData, campo: string): string {
   return String(fd.get(campo) ?? "").trim();
@@ -652,6 +654,130 @@ export async function importarPerfisApify(
 
   revalidarTudo();
   return resumos;
+}
+
+// ---------- Envio via Gmail e cadência ----------
+
+export async function enviarEmailGmail(dados: {
+  marcaId: number;
+  contatoId: number | null;
+  para: string;
+  assunto: string;
+  corpo: string;
+  etapa: string;
+}): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const { conectado } = await gmailConectado();
+  if (!conectado) return { ok: false, erro: "Gmail não conectado — veja as Configurações" };
+
+  const config = await lerConfig();
+  const limite = Math.max(1, Number(config["limite_diario"]) || 15);
+  const enviados = await enviosDeHoje();
+  if (enviados >= limite) {
+    return {
+      ok: false,
+      erro: `limite diário atingido (${enviados}/${limite}) — proteja a entregabilidade e continue amanhã`,
+    };
+  }
+
+  const marca = await prisma.marca.findUnique({ where: { id: dados.marcaId } });
+  if (!marca) return { ok: false, erro: "marca não encontrada" };
+  if (marca.naoContatar) return { ok: false, erro: "marca marcada como não contatar" };
+
+  // Follow-ups seguem na mesma thread do primeiro envio
+  const anterior = await prisma.interacao.findFirst({
+    where: { marcaId: dados.marcaId, gmailThreadId: { not: null } },
+    orderBy: { data: "desc" },
+  });
+
+  try {
+    const envio = await enviarGmail({
+      para: dados.para,
+      assunto: dados.assunto,
+      corpo: dados.corpo,
+      threadId: anterior?.gmailThreadId ?? undefined,
+    });
+    const tipo = dados.etapa === "INICIAL" ? "EMAIL_ENVIADO" : "FOLLOWUP_ENVIADO";
+    await prisma.interacao.create({
+      data: {
+        marcaId: dados.marcaId,
+        contatoId: dados.contatoId,
+        tipo,
+        assunto: dados.assunto,
+        corpo: dados.corpo,
+        gmailThreadId: envio.threadId || null,
+      },
+    });
+    const novoStatus = STATUS_POR_TIPO[tipo];
+    if (novoStatus) {
+      await prisma.marca.update({ where: { id: dados.marcaId }, data: { status: novoStatus } });
+    }
+    revalidarTudo();
+    revalidatePath("/fila");
+    revalidatePath(`/marcas/${dados.marcaId}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erro: e instanceof Error ? e.message : "envio falhou" };
+  }
+}
+
+export async function checarRespostas(): Promise<{ ok: boolean; erro?: string; respostas: number; checadas: number }> {
+  const { conectado, email } = await gmailConectado();
+  if (!conectado || !email) {
+    return { ok: false, erro: "Gmail não conectado", respostas: 0, checadas: 0 };
+  }
+
+  const marcas = await prisma.marca.findMany({
+    where: { status: { in: ["EMAIL_ENVIADO", "FOLLOW_UP"] } },
+    include: {
+      interacoes: {
+        where: { gmailThreadId: { not: null } },
+        orderBy: { data: "desc" },
+        take: 1,
+      },
+    },
+    take: 25,
+  });
+
+  let respostas = 0;
+  let checadas = 0;
+  for (const marca of marcas) {
+    const threadId = marca.interacoes[0]?.gmailThreadId;
+    if (!threadId) continue;
+    checadas++;
+    try {
+      if (await threadTemResposta(threadId, email)) {
+        await prisma.interacao.create({
+          data: {
+            marcaId: marca.id,
+            tipo: "RESPOSTA_RECEBIDA",
+            resultado: "Resposta detectada automaticamente na thread do Gmail.",
+            gmailThreadId: threadId,
+          },
+        });
+        await prisma.marca.update({ where: { id: marca.id }, data: { status: "RESPONDEU" } });
+        respostas++;
+      }
+    } catch {
+      // thread inacessível — segue para a próxima
+    }
+  }
+
+  revalidarTudo();
+  revalidatePath("/fila");
+  return { ok: true, respostas, checadas };
+}
+
+export async function checarRespostasForm() {
+  await checarRespostas();
+}
+
+export async function desconectarGmail() {
+  await prisma.config.deleteMany({
+    where: { chave: { in: ["gmail_refresh_token", "gmail_email"] } },
+  });
+  revalidatePath("/configuracoes");
+  revalidatePath("/fila");
+  revalidatePath("/mensagens");
 }
 
 // ---------- Configurações ----------

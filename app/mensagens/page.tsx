@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { lerConfig } from "@/lib/actions";
+import { gmailConectado } from "@/lib/gmail";
+import { enviosDeHoje } from "@/lib/fila";
 import GeradorMensagem from "../components/GeradorMensagem";
 
 export const dynamic = "force-dynamic";
@@ -8,11 +10,11 @@ export const dynamic = "force-dynamic";
 export default async function MensagensPage({
   searchParams,
 }: {
-  searchParams: Promise<{ marca?: string }>;
+  searchParams: Promise<{ marca?: string; etapa?: string }>;
 }) {
-  const { marca } = await searchParams;
+  const { marca, etapa } = await searchParams;
 
-  const [marcas, templates, campanhas, config] = await Promise.all([
+  const [marcas, templates, campanhas, config, gmail, enviados] = await Promise.all([
     prisma.marca.findMany({
       where: { naoContatar: false },
       orderBy: { nome: "asc" },
@@ -21,6 +23,8 @@ export default async function MensagensPage({
     prisma.template.findMany({ orderBy: { id: "asc" } }),
     prisma.campanha.findMany({ where: { ativa: true }, orderBy: { id: "desc" } }),
     lerConfig(),
+    gmailConectado(),
+    enviosDeHoje(),
   ]);
 
   if (templates.length === 0) {
@@ -39,6 +43,8 @@ export default async function MensagensPage({
       </div>
     );
   }
+
+  const templateInicial = etapa ? templates.find((t) => t.etapa === etapa)?.id : undefined;
 
   return (
     <div className="flex flex-col gap-5">
@@ -65,6 +71,12 @@ export default async function MensagensPage({
         campanhas={campanhas}
         config={config}
         marcaInicial={marca ? Number(marca) : undefined}
+        templateInicial={templateInicial}
+        gmail={{
+          conectado: gmail.conectado,
+          enviosHoje: enviados,
+          limite: Math.max(1, Number(config["limite_diario"]) || 15),
+        }}
       />
     </div>
   );

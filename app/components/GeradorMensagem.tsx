@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { registrarInteracao } from "@/lib/actions";
+import { enviarEmailGmail, registrarInteracao } from "@/lib/actions";
 import { renderTemplate } from "@/lib/render";
 import { ETAPAS_TEMPLATE } from "@/lib/constants";
 
@@ -41,21 +41,33 @@ export default function GeradorMensagem({
   campanhas,
   config,
   marcaInicial,
+  templateInicial,
+  gmail,
 }: {
   marcas: MarcaItem[];
   templates: TemplateItem[];
   campanhas: CampanhaItem[];
   config: Record<string, string>;
   marcaInicial?: number;
+  templateInicial?: number;
+  gmail: { conectado: boolean; enviosHoje: number; limite: number };
 }) {
   const [marcaId, setMarcaId] = useState<number>(
     marcaInicial && marcas.some((m) => m.id === marcaInicial) ? marcaInicial : (marcas[0]?.id ?? 0)
   );
   const [contatoEscolhido, setContatoEscolhido] = useState<number | null>(null);
-  const [templateId, setTemplateId] = useState<number>(templates[0]?.id ?? 0);
+  const [templateId, setTemplateId] = useState<number>(
+    templateInicial && templates.some((t) => t.id === templateInicial)
+      ? templateInicial
+      : (templates[0]?.id ?? 0)
+  );
   const [campanhaId, setCampanhaId] = useState<number>(campanhas[0]?.id ?? 0);
   const [avisoCopiado, setAvisoCopiado] = useState<string | null>(null);
   const [registrado, setRegistrado] = useState(false);
+  const [envio, setEnvio] = useState<{ estado: "idle" | "ok" | "erro"; mensagem?: string }>({
+    estado: "idle",
+  });
+  const [enviosFeitos, setEnviosFeitos] = useState(0);
   const [pendente, startTransition] = useTransition();
 
   const marca = marcas.find((m) => m.id === marcaId);
@@ -98,6 +110,7 @@ export default function GeradorMensagem({
     setAssunto(assuntoGerado);
     setCorpo(corpoGerado);
     setRegistrado(false);
+    setEnvio({ estado: "idle" });
   }
 
   const pendencias = useMemo(() => {
@@ -130,6 +143,28 @@ export default function GeradorMensagem({
       setRegistrado(true);
     });
   }
+
+  function enviarPeloApp() {
+    if (!marca || !contato?.email) return;
+    startTransition(async () => {
+      const resultado = await enviarEmailGmail({
+        marcaId: marca.id,
+        contatoId: contato.id,
+        para: contato.email!,
+        assunto,
+        corpo,
+        etapa: template?.etapa ?? "INICIAL",
+      });
+      if (resultado.ok) {
+        setEnvio({ estado: "ok" });
+        setEnviosFeitos((n) => n + 1);
+      } else {
+        setEnvio({ estado: "erro", mensagem: resultado.erro });
+      }
+    });
+  }
+
+  const limiteAtingido = gmail.enviosHoje + enviosFeitos >= gmail.limite;
 
   const linkGmail = contato?.email
     ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
@@ -265,6 +300,22 @@ export default function GeradorMensagem({
         )}
 
         <div className="flex flex-wrap items-center gap-2">
+          {gmail.conectado && contato?.email && (
+            <button
+              type="button"
+              onClick={enviarPeloApp}
+              disabled={pendente || envio.estado === "ok" || limiteAtingido}
+              className="btn-primary"
+            >
+              {envio.estado === "ok"
+                ? "Enviado pelo Gmail ✓"
+                : pendente
+                  ? "Enviando..."
+                  : limiteAtingido
+                    ? `Limite diário atingido (${gmail.limite})`
+                    : "🚀 Enviar pelo Gmail"}
+            </button>
+          )}
           <button type="button" className="btn-secondary" onClick={() => copiar(assunto, "assunto")}>
             {avisoCopiado === "assunto" ? "Copiado ✓" : "Copiar assunto"}
           </button>
@@ -272,22 +323,28 @@ export default function GeradorMensagem({
             {avisoCopiado === "corpo" ? "Copiado ✓" : "Copiar mensagem"}
           </button>
           {linkGmail && (
-            <a href={linkGmail} target="_blank" rel="noreferrer" className="btn-primary">
+            <a href={linkGmail} target="_blank" rel="noreferrer" className="btn-secondary">
               Abrir no Gmail
             </a>
           )}
           <button
             type="button"
             onClick={registrar}
-            disabled={pendente || registrado || !marca}
-            className="btn-primary"
+            disabled={pendente || registrado || envio.estado === "ok" || !marca}
+            className="btn-secondary"
           >
-            {registrado ? "Envio registrado ✓" : pendente ? "Registrando..." : "Registrar envio"}
+            {registrado ? "Envio registrado ✓" : pendente ? "Registrando..." : "Registrar envio manual"}
           </button>
         </div>
+        {envio.estado === "erro" && (
+          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            Envio falhou: {envio.mensagem}
+          </p>
+        )}
         <p className="text-[11px] text-slate-400">
-          &quot;Registrar envio&quot; salva a mensagem no histórico da marca e move o card no
-          pipeline. Mantenha o ritmo de até ~15 e-mails/dia para preservar a entregabilidade.
+          {gmail.conectado
+            ? `Envios hoje: ${gmail.enviosHoje + enviosFeitos}/${gmail.limite}. O envio pelo app salva no histórico, move o card e mantém follow-ups na mesma thread.`
+            : "Conecte o Gmail nas Configurações para enviar direto daqui. “Registrar envio manual” salva no histórico quando você envia pelo navegador."}
         </p>
       </div>
     </div>

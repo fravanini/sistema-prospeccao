@@ -32,6 +32,15 @@ metas) está em **[PLANO.md](./PLANO.md)**. Este app é a Fase 1 do plano: o MVP
   {{metricas}}...), preview editável, botão "Abrir no Gmail" já preenchido e registro do
   envio no histórico
 - **Cadência pronta** — templates de D0, D+4, D+10 e D+20 carregados pelo seed
+- **Envio pelo app via Gmail API** — conecte sua conta Google (OAuth) nas Configurações e
+  envie direto da tela de Mensagens; follow-ups saem na mesma thread do primeiro e-mail
+- **Fila do dia** — a tela de trabalho diária: primeiros contatos pendentes + follow-ups
+  vencidos pela cadência, contador de envios do dia e sugestão de encerramento após a
+  cadência completa sem resposta
+- **Limite diário de envio** (padrão 15/dia, configurável) aplicado no servidor — proteção
+  de entregabilidade que o app impõe, não só recomenda
+- **Detecção de respostas** — o botão "Checar respostas no Gmail" varre as threads dos
+  envios e move os cards para "Respondeu" automaticamente
 - **Campanhas** — o motivo concreto do contato (uma expedição, uma série de conteúdo)
 - **Proteções** — flag "não contatar" por marca e lembrete de limite diário de envio
 
@@ -60,6 +69,7 @@ e comece a cadastrar marcas.
 | `npm run e2e` | teste de ponta a ponta no navegador (requer banco recém-criado e `npm start` rodando) |
 | `npm run e2e:descoberta` | teste do módulo de descoberta com APIs simuladas (ver cabeçalho do script) |
 | `npm run e2e:apify` | teste do fluxo Apify (garimpo + perfis) com APIs simuladas (ver cabeçalho do script) |
+| `npm run e2e:gmail` | teste do envio Gmail + fila do dia com OAuth/Gmail simulados (ver cabeçalho do script) |
 
 ## Stack
 
@@ -77,9 +87,17 @@ local, `prisma/dev.db` — fora do git).
    conversa evolui.
 5. Máximo ~15 e-mails novos por dia para proteger a entregabilidade do Gmail.
 
+## Conexão com o Gmail (Fase 2)
+
+1. Em [console.cloud.google.com](https://console.cloud.google.com), crie um projeto e ative a
+   **Gmail API**
+2. Tela de permissão OAuth: tipo Externo; adicione seu e-mail como usuário de teste
+3. Credenciais → ID do cliente OAuth → tipo **Aplicativo da Web**, com URI de
+   redirecionamento `http://localhost:3000/api/gmail/callback`
+4. Cole o Client ID e o Secret nas Configurações do app, salve e clique em **Conectar Gmail**
+
 ## Próximas fases (ver PLANO.md)
 
-- **Fase 2:** envio pelo app via Gmail API, fila do dia com follow-ups automáticos
 - **Fase 3:** geração de gancho com IA, métricas avançadas
 - **Fase 4:** deploy gratuito (Vercel + Supabase) e integração com Snov via API
-  (a integração com Hunter.io já está na Descoberta)
+  (Hunter.io e Apify já estão na Descoberta)
