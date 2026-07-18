@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { lerConfig } from "@/lib/actions";
 import { gmailConectado } from "@/lib/gmail";
 import { enviosDeHoje } from "@/lib/fila";
+import { nichoAtual } from "@/lib/nicho-atual";
 import GeradorMensagem from "../components/GeradorMensagem";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function MensagensPage({
 }) {
   const { marca, etapa } = await searchParams;
 
-  const [marcas, templates, campanhas, config, gmail, enviados] = await Promise.all([
+  const [marcas, templates, campanhas, config, gmail, enviados, nicho] = await Promise.all([
     prisma.marca.findMany({
       where: { naoContatar: false },
       orderBy: { nome: "asc" },
@@ -25,6 +26,7 @@ export default async function MensagensPage({
     lerConfig(),
     gmailConectado(),
     enviosDeHoje(),
+    nichoAtual(),
   ]);
 
   if (templates.length === 0) {
@@ -69,7 +71,7 @@ export default async function MensagensPage({
         }))}
         templates={templates}
         campanhas={campanhas}
-        config={config}
+        config={{ ...config, nicho: config["nicho"]?.trim() || nicho.nome }}
         marcaInicial={marca ? Number(marca) : undefined}
         templateInicial={templateInicial}
         gmail={{

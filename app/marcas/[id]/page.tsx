@@ -21,6 +21,7 @@ import {
 import MarcaForm from "../../components/MarcaForm";
 import ConfirmSubmit from "../../components/ConfirmSubmit";
 import { ScoreBadge } from "../../components/KanbanBoard";
+import { nichoAtual } from "@/lib/nicho-atual";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +30,16 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ id:
   const marcaId = Number(id);
   if (!Number.isInteger(marcaId)) notFound();
 
-  const marca = await prisma.marca.findUnique({
-    where: { id: marcaId },
-    include: {
-      contatos: { orderBy: { createdAt: "asc" } },
-      interacoes: { orderBy: { data: "desc" }, include: { contato: true } },
-    },
-  });
+  const [marca, nicho] = await Promise.all([
+    prisma.marca.findUnique({
+      where: { id: marcaId },
+      include: {
+        contatos: { orderBy: { createdAt: "asc" } },
+        interacoes: { orderBy: { data: "desc" }, include: { contato: true } },
+      },
+    }),
+    nichoAtual(),
+  ]);
   if (!marca) notFound();
 
   const moverAction = async (fd: FormData) => {
@@ -261,6 +265,7 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ id:
           action={atualizarMarca.bind(null, marca.id)}
           valores={marca}
           textoBotao="Salvar alterações"
+          categorias={nicho.categorias}
         />
       </section>
     </div>

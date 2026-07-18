@@ -1,13 +1,19 @@
 # Sistema de Prospecção de Marcas
 
-CRM pessoal para prospecção ativa de marcas por e-mail — feito para criadores de conteúdo
-(nicho: viagem de aventura, vida outdoor e nomadismo digital) que querem fechar parcerias
-pagas de forma organizada.
+CRM de prospecção ativa de marcas por e-mail para **criadores de conteúdo de qualquer
+nicho** que querem fechar parcerias pagas de forma organizada. Selecione o nicho no
+**Guia** e o app inteiro se adapta: categorias de marca, hashtags do garimpo, fontes de
+pesquisa e dicas de gancho.
 
 O método completo (onde achar marcas, como achar o contato certo, cadência de follow-up,
-metas) está em **[PLANO.md](./PLANO.md)**. Este app é a Fase 1 do plano: o MVP do CRM.
+metas) está em **[PLANO.md](./PLANO.md)**.
 
 ## Funcionalidades
+
+- **Guia do nicho** — catálogo de nichos prontos (Viagem & Outdoor, Fitness, Moda & Beleza,
+  Gastronomia, Tech & Games, Finanças, Maternidade, Pets, Casa & Decor, Educação, ou
+  Geral/Personalizado). Cada nicho traz: quem prospectar, onde pesquisar, hashtags de
+  garimpo com um clique e o que observar para o gancho — o playbook vira produto
 
 - **Pipeline Kanban** — arraste marcas entre as etapas: Pesquisada → Contato encontrado →
   E-mail enviado → Follow-up → Respondeu → Negociando → Fechada / Perdida
@@ -101,3 +107,5 @@ local, `prisma/dev.db` — fora do git).
 - **Fase 3:** geração de gancho com IA, métricas avançadas
 - **Fase 4:** deploy gratuito (Vercel + Supabase) e integração com Snov via API
   (Hunter.io e Apify já estão na Descoberta)
+- **Produto:** para evoluir rumo a um app vendável — multiusuário (auth + banco por
+  conta), nichos editáveis pelo usuário e onboarding guiado

@@ -15,24 +15,6 @@ export function statusLabel(id: string): string {
   return STATUS_PIPELINE.find((s) => s.id === id)?.label ?? id;
 }
 
-export const CATEGORIAS = [
-  "Equipamento outdoor",
-  "Vestuário técnico",
-  "Calçados",
-  "Viagem / Turismo",
-  "Hospedagem",
-  "Apps de trilha / viagem",
-  "Seguro viagem",
-  "Chip / eSIM",
-  "Banco digital / Cartão",
-  "VPN / Software",
-  "Coworking",
-  "Suplementos / Nutrição",
-  "Alimentos e bebidas",
-  "Câmeras / Eletrônicos",
-  "Outra",
-] as const;
-
 export const PORTES = ["Pequena", "Média", "Grande"] as const;
 
 export const ETAPAS_TEMPLATE = [
@@ -74,7 +56,11 @@ export const CONFIG_PADRAO: Record<string, { label: string; valor: string; ajuda
   meu_nome: { label: "Seu nome", valor: "" },
   meu_perfil: { label: "@ do seu perfil", valor: "" },
   seguidores: { label: "Seguidores", valor: "50 mil" },
-  nicho: { label: "Seu nicho", valor: "viagem de aventura, vida outdoor e nomadismo digital" },
+  nicho: {
+    label: "Seu nicho (texto para os e-mails)",
+    valor: "",
+    ajuda: "Como {{nicho}} aparece nas mensagens; vazio = usa o nicho selecionado no Guia",
+  },
   metricas: {
     label: "Métricas resumidas",
     valor: "",

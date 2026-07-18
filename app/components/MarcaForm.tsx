@@ -1,4 +1,4 @@
-import { CATEGORIAS, PORTES } from "@/lib/constants";
+import { PORTES } from "@/lib/constants";
 
 interface Valores {
   nome?: string;
@@ -18,11 +18,17 @@ export default function MarcaForm({
   action,
   valores = {},
   textoBotao,
+  categorias,
 }: {
   action: (fd: FormData) => Promise<void>;
   valores?: Valores;
   textoBotao: string;
+  categorias: string[];
 }) {
+  const opcoesCategoria =
+    valores.categoria && !categorias.includes(valores.categoria)
+      ? [...categorias, valores.categoria]
+      : categorias;
   return (
     <form action={action} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -53,7 +59,7 @@ export default function MarcaForm({
         <div>
           <label htmlFor="categoria">Categoria</label>
           <select id="categoria" name="categoria" defaultValue={valores.categoria ?? "Outra"}>
-            {CATEGORIAS.map((c) => (
+            {opcoesCategoria.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>

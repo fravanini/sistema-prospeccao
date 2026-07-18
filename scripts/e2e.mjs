@@ -28,6 +28,16 @@ await page.click("button:has-text('Salvar configurações')");
 await page.waitForTimeout(1000);
 ok("configurações salvas");
 
+// 2b. Seleciona o nicho no Guia — o app inteiro se adapta a ele
+await page.goto(base + "/guia");
+await page.selectOption("#nicho_id", "viagem-outdoor");
+await page.click("button:has-text('Aplicar nicho')");
+await page.waitForTimeout(1000);
+const guia = await page.locator("body").innerText();
+if (guia.includes("Equipamento outdoor") && guia.includes("trekkingbrasil"))
+  ok("guia do nicho aplicado (categorias e hashtags)");
+else falha("guia do nicho aplicado", guia.slice(0, 200));
+
 // 3. Nova marca
 await page.goto(base + "/marcas/nova");
 await page.fill("#nome", "Trilhas & Cia");

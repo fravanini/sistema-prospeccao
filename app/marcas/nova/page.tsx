@@ -1,7 +1,11 @@
 import { criarMarca } from "@/lib/actions";
+import { nichoAtual } from "@/lib/nicho-atual";
 import MarcaForm from "../../components/MarcaForm";
 
-export default function NovaMarcaPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NovaMarcaPage() {
+  const nicho = await nichoAtual();
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <div>
@@ -12,7 +16,7 @@ export default function NovaMarcaPage() {
         </p>
       </div>
       <div className="card">
-        <MarcaForm action={criarMarca} textoBotao="Cadastrar marca" />
+        <MarcaForm action={criarMarca} textoBotao="Cadastrar marca" categorias={nicho.categorias} />
       </div>
     </div>
   );
