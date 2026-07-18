@@ -1,11 +1,13 @@
 import { criarMarca } from "@/lib/actions";
 import { nichoAtual } from "@/lib/nicho-atual";
+import { exigirUsuario } from "@/lib/auth";
 import MarcaForm from "../../components/MarcaForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function NovaMarcaPage() {
-  const nicho = await nichoAtual();
+  const usuario = await exigirUsuario();
+  const nicho = await nichoAtual(usuario.id);
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <div>

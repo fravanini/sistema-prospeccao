@@ -2,11 +2,13 @@ import Link from "next/link";
 import { NICHOS } from "@/lib/nichos";
 import { nichoAtual } from "@/lib/nicho-atual";
 import { salvarConfig } from "@/lib/actions";
+import { exigirUsuario } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function GuiaPage() {
-  const nicho = await nichoAtual();
+  const usuario = await exigirUsuario();
+  const nicho = await nichoAtual(usuario.id);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">

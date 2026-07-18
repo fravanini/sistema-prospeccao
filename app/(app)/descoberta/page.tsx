@@ -1,4 +1,5 @@
 import { nichoAtual } from "@/lib/nicho-atual";
+import { exigirUsuario } from "@/lib/auth";
 import DescobertaClient from "../components/DescobertaClient";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,8 @@ export default async function DescobertaPage({
 }: {
   searchParams: Promise<{ hashtags?: string }>;
 }) {
-  const [{ hashtags }, nicho] = await Promise.all([searchParams, nichoAtual()]);
+  const usuario = await exigirUsuario();
+  const [{ hashtags }, nicho] = await Promise.all([searchParams, nichoAtual(usuario.id)]);
   const hashtagsIniciais = hashtags ?? nicho.hashtags.slice(0, 3).join(", ");
 
   return (

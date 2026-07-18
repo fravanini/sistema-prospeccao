@@ -12,8 +12,18 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const page = await browser.newPage();
 page.on("pageerror", (e) => falha("erro JS na página", e.message));
 
-// 1. Pipeline vazio
-await page.goto(base + "/");
+
+// Cria uma conta nova para esta rodada de teste
+const emailTeste = `t${Date.now()}@teste.com`;
+await page.goto(base + "/registro");
+await page.fill("#nome", "Felipe Teste");
+await page.fill("#email", emailTeste);
+await page.fill("#senha", "senha12345");
+await page.click("button:has-text('Criar conta')");
+await page.waitForURL(base + "/", { timeout: 15000 });
+ok("conta criada e logada");
+
+// 1. Pipeline vazio da conta nova
 if (await page.getByText("Nenhuma marca cadastrada ainda").isVisible()) ok("pipeline vazio");
 else falha("pipeline vazio");
 
@@ -119,6 +129,23 @@ ok("importação CSV (2 marcas)");
 await page.goto(base + "/templates");
 if (await page.locator("summary").getByText("Último toque").first().isVisible()) ok("templates do seed listados");
 else falha("templates do seed listados");
+
+// 11. Isolamento entre contas: segunda conta não vê nada da primeira
+await page.click("button:has-text('Sair')");
+await page.waitForURL(/login/);
+await page.goto(base + "/registro");
+await page.fill("#nome", "Outra Pessoa");
+await page.fill("#email", `u${Date.now()}@teste.com`);
+await page.fill("#senha", "senha12345");
+await page.click("button:has-text('Criar conta')");
+await page.waitForURL(base + "/", { timeout: 15000 });
+if (await page.getByText("Nenhuma marca cadastrada ainda").isVisible())
+  ok("isolamento: conta nova não vê marcas da outra");
+else falha("isolamento: conta nova não vê marcas da outra");
+await page.goto(base + "/marcas/1");
+if ((await page.locator("body").innerText()).includes("404"))
+  ok("isolamento: ficha de marca alheia retorna 404");
+else falha("isolamento: ficha de marca alheia retorna 404");
 
 await browser.close();
 console.log(falhas.length === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${falhas.length} FALHAS`);

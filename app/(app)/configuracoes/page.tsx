@@ -1,6 +1,7 @@
 import { CONFIG_PADRAO } from "@/lib/constants";
 import { desconectarGmail, lerConfig, salvarConfig } from "@/lib/actions";
 import { gmailConectado } from "@/lib/gmail";
+import { exigirUsuario } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +10,11 @@ export default async function ConfiguracoesPage({
 }: {
   searchParams: Promise<{ gmail?: string }>;
 }) {
+  const usuario = await exigirUsuario();
   const [{ gmail }, config, statusGmail] = await Promise.all([
     searchParams,
     lerConfig(),
-    gmailConectado(),
+    gmailConectado(usuario.id),
   ]);
 
   return (

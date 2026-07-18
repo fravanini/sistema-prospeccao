@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { usuarioAtual } from "@/lib/auth";
 import { GMAIL_SCOPES, GOOGLE_AUTH_URL } from "@/lib/gmail";
 
 export async function GET(req: NextRequest) {
-  const clientId = (await prisma.config.findUnique({ where: { chave: "gmail_client_id" } }))?.valor;
+  const usuario = await usuarioAtual();
+  if (!usuario) return NextResponse.redirect(new URL("/login", req.url));
+
+  const clientId = (
+    await prisma.config.findUnique({
+      where: { usuarioId_chave: { usuarioId: usuario.id, chave: "gmail_client_id" } },
+    })
+  )?.valor;
   if (!clientId) {
     return NextResponse.redirect(new URL("/configuracoes?gmail=sem_client_id", req.url));
   }

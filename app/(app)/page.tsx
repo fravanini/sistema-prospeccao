@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { exigirUsuario } from "@/lib/auth";
 import { STATUS_PIPELINE, scoreMarca } from "@/lib/constants";
 import KanbanBoard, { MarcaCard } from "./components/KanbanBoard";
 
 export const dynamic = "force-dynamic";
 
 export default async function PipelinePage() {
+  const usuario = await exigirUsuario();
   const marcas = await prisma.marca.findMany({
+    where: { usuarioId: usuario.id },
     orderBy: { updatedAt: "desc" },
     include: { contatos: { select: { id: true } } },
   });

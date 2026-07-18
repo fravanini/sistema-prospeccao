@@ -22,6 +22,7 @@ import MarcaForm from "../../components/MarcaForm";
 import ConfirmSubmit from "../../components/ConfirmSubmit";
 import { ScoreBadge } from "../../components/KanbanBoard";
 import { nichoAtual } from "@/lib/nicho-atual";
+import { exigirUsuario } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +31,16 @@ export default async function FichaMarcaPage({ params }: { params: Promise<{ id:
   const marcaId = Number(id);
   if (!Number.isInteger(marcaId)) notFound();
 
+  const usuario = await exigirUsuario();
   const [marca, nicho] = await Promise.all([
-    prisma.marca.findUnique({
-      where: { id: marcaId },
+    prisma.marca.findFirst({
+      where: { id: marcaId, usuarioId: usuario.id },
       include: {
         contatos: { orderBy: { createdAt: "asc" } },
         interacoes: { orderBy: { data: "desc" }, include: { contato: true } },
       },
     }),
-    nichoAtual(),
+    nichoAtual(usuario.id),
   ]);
   if (!marca) notFound();
 

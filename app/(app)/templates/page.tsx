@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { exigirUsuario } from "@/lib/auth";
 import { ETAPAS_TEMPLATE, VARIAVEIS_TEMPLATE } from "@/lib/constants";
 import { atualizarTemplate, criarTemplate, excluirTemplate } from "@/lib/actions";
 import ConfirmSubmit from "../components/ConfirmSubmit";
@@ -6,7 +7,11 @@ import ConfirmSubmit from "../components/ConfirmSubmit";
 export const dynamic = "force-dynamic";
 
 export default async function TemplatesPage() {
-  const templates = await prisma.template.findMany({ orderBy: { id: "asc" } });
+  const usuario = await exigirUsuario();
+  const templates = await prisma.template.findMany({
+    where: { usuarioId: usuario.id },
+    orderBy: { id: "asc" },
+  });
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">

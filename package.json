@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "node prisma/seed.mjs",
-    "setup": "prisma migrate deploy && prisma generate && node prisma/seed.mjs",
+    "setup": "prisma migrate deploy && prisma generate",
     "e2e": "node scripts/e2e.mjs",
     "e2e:descoberta": "node scripts/e2e-descoberta.mjs",
     "e2e:apify": "node scripts/e2e-apify.mjs",
@@ -16,6 +15,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
     "next": "16.2.10",
     "prisma": "^6.19.3",
     "react": "19.2.4",

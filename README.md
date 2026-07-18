@@ -1,15 +1,19 @@
 # Sistema de Prospecção de Marcas
 
 CRM de prospecção ativa de marcas por e-mail para **criadores de conteúdo de qualquer
-nicho** que querem fechar parcerias pagas de forma organizada. Selecione o nicho no
-**Guia** e o app inteiro se adapta: categorias de marca, hashtags do garimpo, fontes de
-pesquisa e dicas de gancho.
+nicho** que querem fechar parcerias pagas de forma organizada. **Multiusuário**: cada
+criador tem sua conta, com dados totalmente isolados. Selecione o nicho no **Guia** e o
+app inteiro se adapta: categorias de marca, hashtags do garimpo, fontes de pesquisa e
+dicas de gancho.
 
 O método completo (onde achar marcas, como achar o contato certo, cadência de follow-up,
 metas) está em **[PLANO.md](./PLANO.md)**.
 
 ## Funcionalidades
 
+- **Contas e login** — cadastro com e-mail e senha (bcrypt + sessão em cookie httpOnly);
+  toda consulta é filtrada por usuário no servidor, incluindo tokens do Gmail/Apify/Hunter.
+  Cada conta nova já nasce com os templates da cadência e uma campanha de exemplo
 - **Guia do nicho** — catálogo de nichos prontos (Viagem & Outdoor, Fitness, Moda & Beleza,
   Gastronomia, Tech & Games, Finanças, Maternidade, Pets, Casa & Decor, Educação, ou
   Geral/Personalizado). Cada nicho traz: quem prospectar, onde pesquisar, hashtags de
@@ -57,12 +61,13 @@ Pré-requisito: Node.js 20+.
 ```bash
 cp .env.example .env     # configura o caminho do banco SQLite
 npm install
-npm run setup            # cria o banco, gera o client e carrega os templates padrão
+npm run setup            # cria o banco e gera o client
 npm run dev
 ```
 
-Abra http://localhost:3000, preencha **Configurações** (seu nome, @, métricas, mídia kit)
-e comece a cadastrar marcas.
+Abra http://localhost:3000, **crie sua conta** em /registro (os templates da cadência já
+vêm com ela), selecione seu nicho no **Guia**, preencha **Configurações** (nome, @,
+métricas, mídia kit) e comece a cadastrar marcas.
 
 ## Scripts
 
@@ -70,8 +75,7 @@ e comece a cadastrar marcas.
 |---|---|
 | `npm run dev` | servidor de desenvolvimento |
 | `npm run build` / `npm start` | build e servidor de produção |
-| `npm run seed` | carrega templates da cadência e campanha de exemplo (idempotente) |
-| `npm run setup` | migra o banco + gera o client Prisma + seed |
+| `npm run setup` | migra o banco + gera o client Prisma |
 | `npm run e2e` | teste de ponta a ponta no navegador (requer banco recém-criado e `npm start` rodando) |
 | `npm run e2e:descoberta` | teste do módulo de descoberta com APIs simuladas (ver cabeçalho do script) |
 | `npm run e2e:apify` | teste do fluxo Apify (garimpo + perfis) com APIs simuladas (ver cabeçalho do script) |
@@ -107,5 +111,6 @@ local, `prisma/dev.db` — fora do git).
 - **Fase 3:** geração de gancho com IA, métricas avançadas
 - **Fase 4:** deploy gratuito (Vercel + Supabase) e integração com Snov via API
   (Hunter.io e Apify já estão na Descoberta)
-- **Produto:** para evoluir rumo a um app vendável — multiusuário (auth + banco por
-  conta), nichos editáveis pelo usuário e onboarding guiado
+- **Produto:** multiusuário ✓ (feito). Próximos passos rumo ao app vendável: deploy em
+  nuvem (Postgres + Vercel), nichos editáveis pelo usuário, onboarding guiado, cobrança
+  (Stripe) e termos de uso/política de privacidade (LGPD)

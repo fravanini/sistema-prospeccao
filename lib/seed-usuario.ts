@@ -1,8 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+// Conteúdo inicial de toda conta nova: os 4 templates da cadência
+// D0 / D+4 / D+10 / D+20 e uma campanha de exemplo.
 
-const prisma = new PrismaClient();
+import { prisma } from "./db";
 
-const TEMPLATES = [
+export const TEMPLATES_PADRAO = [
   {
     nome: "Apresentação + proposta",
     etapa: "INICIAL",
@@ -59,36 +60,17 @@ Sucesso com as campanhas!
   },
 ];
 
-async function main() {
-  const totalTemplates = await prisma.template.count();
-  if (totalTemplates === 0) {
-    for (const t of TEMPLATES) {
-      await prisma.template.create({ data: t });
-    }
-    console.log(`✔ ${TEMPLATES.length} templates da cadência criados`);
-  } else {
-    console.log("• Templates já existem, pulando");
+export async function aplicarSeedUsuario(usuarioId: number): Promise<void> {
+  for (const t of TEMPLATES_PADRAO) {
+    await prisma.template.create({ data: { ...t, usuarioId } });
   }
-
-  const totalCampanhas = await prisma.campanha.count();
-  if (totalCampanhas === 0) {
-    await prisma.campanha.create({
-      data: {
-        nome: "Parcerias contínuas 2026",
-        periodo: "próximo trimestre",
-        pitchBase:
-          "tenho viagens de aventura programadas para os próximos meses e vejo encaixe perfeito para mostrar os produtos da marca em uso real, em reels + stories",
-      },
-    });
-    console.log("✔ Campanha de exemplo criada");
-  } else {
-    console.log("• Campanhas já existem, pulando");
-  }
+  await prisma.campanha.create({
+    data: {
+      usuarioId,
+      nome: "Parcerias contínuas",
+      periodo: "próximo trimestre",
+      pitchBase:
+        "tenho conteúdos programados para os próximos meses e vejo encaixe perfeito para mostrar os produtos da marca em uso real, em reels + stories",
+    },
+  });
 }
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());

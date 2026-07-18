@@ -22,12 +22,13 @@ export interface ItemFila {
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-export async function montarFila(): Promise<{
+export async function montarFila(usuarioId: number): Promise<{
   hoje: ItemFila[];
   aguardando: { marcaNome: string; rotulo: string; emDias: number }[];
 }> {
   const marcas = await prisma.marca.findMany({
     where: {
+      usuarioId,
       naoContatar: false,
       status: { in: ["CONTATO_ENCONTRADO", "EMAIL_ENVIADO", "FOLLOW_UP"] },
     },
@@ -104,10 +105,14 @@ export async function montarFila(): Promise<{
   return { hoje, aguardando };
 }
 
-export async function enviosDeHoje(): Promise<number> {
+export async function enviosDeHoje(usuarioId: number): Promise<number> {
   const inicioDoDia = new Date();
   inicioDoDia.setHours(0, 0, 0, 0);
   return prisma.interacao.count({
-    where: { tipo: { in: TIPOS_ENVIO }, data: { gte: inicioDoDia } },
+    where: {
+      tipo: { in: TIPOS_ENVIO },
+      data: { gte: inicioDoDia },
+      marca: { usuarioId },
+    },
   });
 }

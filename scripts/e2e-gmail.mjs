@@ -71,6 +71,17 @@ const page = await browser.newPage();
 page.on("pageerror", (e) => falha("erro JS na página", e.message));
 const base = "http://localhost:3000";
 
+
+// Cria uma conta nova para esta rodada de teste
+const emailTeste = `t${Date.now()}@teste.com`;
+await page.goto(base + "/registro");
+await page.fill("#nome", "Felipe Teste");
+await page.fill("#email", emailTeste);
+await page.fill("#senha", "senha12345");
+await page.click("button:has-text('Criar conta')");
+await page.waitForURL(base + "/", { timeout: 15000 });
+ok("conta criada e logada");
+
 // 1. Marca + contato
 await page.goto(base + "/marcas/nova");
 await page.fill("#nome", "Aventura Gear");
@@ -82,6 +93,7 @@ await page.fill("details[open] input[name='nome']", "Marina Lopes");
 await page.fill("details[open] input[name='email']", "marina@aventuragear.com.br");
 await page.click("details[open] button:has-text('Adicionar')");
 await page.waitForTimeout(1200);
+const urlFicha = page.url();
 ok("marca e contato criados");
 
 // 2. Configurações: credenciais + limite 1 + conectar
@@ -117,7 +129,7 @@ if (rfc822.includes("To: marina@aventuragear.com.br")) ok("destinatário correto
 else falha("destinatário correto no RFC822");
 
 // 5. Limite diário bloqueia o segundo envio
-await page.goto(base + "/mensagens?marca=1");
+await page.goto(base + "/mensagens");
 await page.waitForTimeout(600);
 if (await page.locator("button:has-text('Limite diário atingido')").isVisible())
   ok("limite diário bloqueia novo envio");
@@ -133,7 +145,7 @@ else falha("cadência agendou o follow-up 1 para D+4");
 // 7. Checar respostas: antes (nada) e depois (detecta e move)
 await page.click("button:has-text('Checar respostas no Gmail')");
 await page.waitForTimeout(1500);
-await page.goto(base + "/marcas/1");
+await page.goto(urlFicha);
 if ((await page.locator("body").innerText()).includes("Atual: E-mail enviado"))
   ok("sem resposta, status permanece E-mail enviado");
 else falha("sem resposta, status permanece E-mail enviado");
@@ -142,7 +154,7 @@ temResposta = true;
 await page.goto(base + "/fila");
 await page.click("button:has-text('Checar respostas no Gmail')");
 await page.waitForTimeout(1500);
-await page.goto(base + "/marcas/1");
+await page.goto(urlFicha);
 const ficha = await page.locator("body").innerText();
 if (ficha.includes("Atual: Respondeu")) ok("resposta detectada moveu para Respondeu");
 else falha("resposta detectada moveu para Respondeu");

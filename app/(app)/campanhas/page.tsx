@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/db";
+import { exigirUsuario } from "@/lib/auth";
 import { alternarCampanha, criarCampanha, excluirCampanha } from "@/lib/actions";
 import ConfirmSubmit from "../components/ConfirmSubmit";
 
 export const dynamic = "force-dynamic";
 
 export default async function CampanhasPage() {
-  const campanhas = await prisma.campanha.findMany({ orderBy: { id: "desc" } });
+  const usuario = await exigirUsuario();
+  const campanhas = await prisma.campanha.findMany({
+    where: { usuarioId: usuario.id },
+    orderBy: { id: "desc" },
+  });
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">

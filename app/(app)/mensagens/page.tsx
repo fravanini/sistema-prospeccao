@@ -4,6 +4,7 @@ import { lerConfig } from "@/lib/actions";
 import { gmailConectado } from "@/lib/gmail";
 import { enviosDeHoje } from "@/lib/fila";
 import { nichoAtual } from "@/lib/nicho-atual";
+import { exigirUsuario } from "@/lib/auth";
 import GeradorMensagem from "../components/GeradorMensagem";
 
 export const dynamic = "force-dynamic";
@@ -15,18 +16,19 @@ export default async function MensagensPage({
 }) {
   const { marca, etapa } = await searchParams;
 
+  const usuario = await exigirUsuario();
   const [marcas, templates, campanhas, config, gmail, enviados, nicho] = await Promise.all([
     prisma.marca.findMany({
-      where: { naoContatar: false },
+      where: { usuarioId: usuario.id, naoContatar: false },
       orderBy: { nome: "asc" },
       include: { contatos: { orderBy: { createdAt: "asc" } } },
     }),
-    prisma.template.findMany({ orderBy: { id: "asc" } }),
-    prisma.campanha.findMany({ where: { ativa: true }, orderBy: { id: "desc" } }),
+    prisma.template.findMany({ where: { usuarioId: usuario.id }, orderBy: { id: "asc" } }),
+    prisma.campanha.findMany({ where: { usuarioId: usuario.id, ativa: true }, orderBy: { id: "desc" } }),
     lerConfig(),
-    gmailConectado(),
-    enviosDeHoje(),
-    nichoAtual(),
+    gmailConectado(usuario.id),
+    enviosDeHoje(usuario.id),
+    nichoAtual(usuario.id),
   ]);
 
   if (templates.length === 0) {

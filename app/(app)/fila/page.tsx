@@ -2,15 +2,17 @@ import Link from "next/link";
 import { montarFila, enviosDeHoje } from "@/lib/fila";
 import { lerConfig, checarRespostasForm, moverMarca } from "@/lib/actions";
 import { gmailConectado } from "@/lib/gmail";
+import { exigirUsuario } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function FilaPage() {
+  const usuario = await exigirUsuario();
   const [{ hoje, aguardando }, enviados, config, gmail] = await Promise.all([
-    montarFila(),
-    enviosDeHoje(),
+    montarFila(usuario.id),
+    enviosDeHoje(usuario.id),
     lerConfig(),
-    gmailConectado(),
+    gmailConectado(usuario.id),
   ]);
   const limite = Math.max(1, Number(config["limite_diario"]) || 15);
 

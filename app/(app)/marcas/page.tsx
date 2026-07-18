@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { STATUS_PIPELINE, scoreMarca, statusLabel } from "@/lib/constants";
 import { categoriasDisponiveis, nichoAtual } from "@/lib/nicho-atual";
+import { exigirUsuario } from "@/lib/auth";
 import { ScoreBadge } from "../components/KanbanBoard";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,13 @@ export default async function MarcasPage({
 }: {
   searchParams: Promise<{ q?: string; categoria?: string; status?: string }>;
 }) {
+  const usuario = await exigirUsuario();
   const { q, categoria, status } = await searchParams;
-  const categorias = await categoriasDisponiveis(await nichoAtual());
+  const categorias = await categoriasDisponiveis(usuario.id, await nichoAtual(usuario.id));
 
   const marcas = await prisma.marca.findMany({
     where: {
+      usuarioId: usuario.id,
       ...(q ? { nome: { contains: q } } : {}),
       ...(categoria ? { categoria } : {}),
       ...(status ? { status } : {}),

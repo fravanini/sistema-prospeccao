@@ -16,22 +16,33 @@ export const GMAIL_SCOPES = [
 
 const TIMEOUT_MS = 20_000;
 
-async function config(chave: string): Promise<string | undefined> {
-  const item = await prisma.config.findUnique({ where: { chave } });
+async function config(usuarioId: number, chave: string): Promise<string | undefined> {
+  const item = await prisma.config.findUnique({
+    where: { usuarioId_chave: { usuarioId, chave } },
+  });
   return item?.valor?.trim() || undefined;
 }
 
-export async function gmailConectado(): Promise<{ conectado: boolean; email?: string }> {
-  const [token, email] = await Promise.all([config("gmail_refresh_token"), config("gmail_email")]);
+export async function gmailConectado(
+  usuarioId: number
+): Promise<{ conectado: boolean; email?: string }> {
+  const [token, email] = await Promise.all([
+    config(usuarioId, "gmail_refresh_token"),
+    config(usuarioId, "gmail_email"),
+  ]);
   return { conectado: !!token, email };
 }
 
 // ---------- OAuth ----------
 
-export async function trocarCodigoPorTokens(codigo: string, redirectUri: string) {
+export async function trocarCodigoPorTokens(
+  usuarioId: number,
+  codigo: string,
+  redirectUri: string
+) {
   const [clientId, clientSecret] = await Promise.all([
-    config("gmail_client_id"),
-    config("gmail_client_secret"),
+    config(usuarioId, "gmail_client_id"),
+    config(usuarioId, "gmail_client_secret"),
   ]);
   if (!clientId || !clientSecret) throw new Error("client_id/client_secret não configurados");
 
@@ -55,14 +66,15 @@ export async function trocarCodigoPorTokens(codigo: string, redirectUri: string)
   return { refreshToken: json.refresh_token, accessToken: json.access_token };
 }
 
-let cacheToken: { token: string; expiraEm: number } | null = null;
+const cacheTokens = new Map<number, { token: string; expiraEm: number }>();
 
-async function accessToken(): Promise<string> {
-  if (cacheToken && Date.now() < cacheToken.expiraEm) return cacheToken.token;
+async function accessToken(usuarioId: number): Promise<string> {
+  const emCache = cacheTokens.get(usuarioId);
+  if (emCache && Date.now() < emCache.expiraEm) return emCache.token;
   const [clientId, clientSecret, refreshToken] = await Promise.all([
-    config("gmail_client_id"),
-    config("gmail_client_secret"),
-    config("gmail_refresh_token"),
+    config(usuarioId, "gmail_client_id"),
+    config(usuarioId, "gmail_client_secret"),
+    config(usuarioId, "gmail_refresh_token"),
   ]);
   if (!clientId || !clientSecret || !refreshToken) throw new Error("Gmail não conectado");
 
@@ -80,15 +92,16 @@ async function accessToken(): Promise<string> {
   if (!res.ok) throw new Error(`refresh do token falhou (${res.status}) — reconecte o Gmail`);
   const json = (await res.json()) as { access_token?: string; expires_in?: number };
   if (!json.access_token) throw new Error("resposta sem access_token");
-  cacheToken = {
+  const novo = {
     token: json.access_token,
     expiraEm: Date.now() + ((json.expires_in ?? 3600) - 60) * 1000,
   };
-  return cacheToken.token;
+  cacheTokens.set(usuarioId, novo);
+  return novo.token;
 }
 
-async function gmailGet<T>(caminho: string): Promise<T> {
-  const token = await accessToken();
+async function gmailGet<T>(usuarioId: number, caminho: string): Promise<T> {
+  const token = await accessToken(usuarioId);
   const res = await fetch(`${GMAIL_API_URL}${caminho}`, {
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -97,16 +110,13 @@ async function gmailGet<T>(caminho: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function perfilGmail(accessTokenDireto?: string): Promise<string> {
-  if (accessTokenDireto) {
-    const res = await fetch(`${GMAIL_API_URL}/users/me/profile`, {
-      headers: { authorization: `Bearer ${accessTokenDireto}` },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`perfil retornou ${res.status}`);
-    return ((await res.json()) as { emailAddress?: string }).emailAddress ?? "";
-  }
-  return (await gmailGet<{ emailAddress?: string }>("/users/me/profile")).emailAddress ?? "";
+export async function perfilGmail(accessTokenDireto: string): Promise<string> {
+  const res = await fetch(`${GMAIL_API_URL}/users/me/profile`, {
+    headers: { authorization: `Bearer ${accessTokenDireto}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`perfil retornou ${res.status}`);
+  return ((await res.json()) as { emailAddress?: string }).emailAddress ?? "";
 }
 
 // ---------- Envio ----------
@@ -121,12 +131,15 @@ function cabecalhoUTF8(texto: string): string {
     : texto;
 }
 
-export async function enviarGmail(dados: {
-  para: string;
-  assunto: string;
-  corpo: string;
-  threadId?: string;
-}): Promise<{ id: string; threadId: string }> {
+export async function enviarGmail(
+  usuarioId: number,
+  dados: {
+    para: string;
+    assunto: string;
+    corpo: string;
+    threadId?: string;
+  }
+): Promise<{ id: string; threadId: string }> {
   const mensagem = [
     `To: ${dados.para}`,
     `Subject: ${cabecalhoUTF8(dados.assunto)}`,
@@ -137,7 +150,7 @@ export async function enviarGmail(dados: {
     Buffer.from(dados.corpo, "utf8").toString("base64"),
   ].join("\r\n");
 
-  const token = await accessToken();
+  const token = await accessToken(usuarioId);
   const res = await fetch(`${GMAIL_API_URL}/users/me/messages/send`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -162,8 +175,13 @@ interface ThreadGmail {
  * Retorna true se a thread contém alguma mensagem cujo remetente não é a
  * conta conectada — ou seja, o contato respondeu.
  */
-export async function threadTemResposta(threadId: string, meuEmail: string): Promise<boolean> {
+export async function threadTemResposta(
+  usuarioId: number,
+  threadId: string,
+  meuEmail: string
+): Promise<boolean> {
   const thread = await gmailGet<ThreadGmail>(
+    usuarioId,
     `/users/me/threads/${threadId}?format=metadata&metadataHeaders=From`
   );
   for (const msg of thread.messages ?? []) {

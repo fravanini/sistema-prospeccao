@@ -83,6 +83,17 @@ const page = await browser.newPage();
 page.on("pageerror", (e) => falha("erro JS na página", e.message));
 const base = "http://localhost:3000";
 
+
+// Cria uma conta nova para esta rodada de teste
+const emailTeste = `t${Date.now()}@teste.com`;
+await page.goto(base + "/registro");
+await page.fill("#nome", "Felipe Teste");
+await page.fill("#email", emailTeste);
+await page.fill("#senha", "senha12345");
+await page.click("button:has-text('Criar conta')");
+await page.waitForURL(base + "/", { timeout: 15000 });
+ok("conta criada e logada");
+
 // Configura a chave do Hunter
 await page.goto(base + "/configuracoes");
 await page.fill("#cfg-hunter_api_key", "chave-teste");

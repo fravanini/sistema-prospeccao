@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
+import { exigirUsuario } from "./auth";
 import { nomeParaEmail, normalizarSite, rasparSite, ResultadoScrape } from "./scraper";
 import {
   ATOR_HASHTAG,
@@ -46,42 +47,55 @@ function dadosMarca(fd: FormData) {
 
 function revalidarTudo() {
   revalidatePath("/");
+  revalidatePath("/fila");
   revalidatePath("/marcas");
   revalidatePath("/mensagens");
+}
+
+async function marcaDoUsuario(id: number, usuarioId: number) {
+  return prisma.marca.findFirst({ where: { id, usuarioId } });
 }
 
 // ---------- Marcas ----------
 
 export async function criarMarca(fd: FormData) {
+  const usuario = await exigirUsuario();
   const dados = dadosMarca(fd);
   if (!dados.nome) return;
-  const marca = await prisma.marca.create({ data: dados });
+  const marca = await prisma.marca.create({ data: { ...dados, usuarioId: usuario.id } });
   revalidarTudo();
   redirect(`/marcas/${marca.id}`);
 }
 
 export async function atualizarMarca(id: number, fd: FormData) {
+  const usuario = await exigirUsuario();
   const dados = dadosMarca(fd);
   if (!dados.nome) return;
-  await prisma.marca.update({ where: { id }, data: dados });
+  await prisma.marca.updateMany({ where: { id, usuarioId: usuario.id }, data: dados });
   revalidarTudo();
   revalidatePath(`/marcas/${id}`);
 }
 
 export async function excluirMarca(id: number) {
-  await prisma.marca.delete({ where: { id } });
+  const usuario = await exigirUsuario();
+  await prisma.marca.deleteMany({ where: { id, usuarioId: usuario.id } });
   revalidarTudo();
   redirect("/marcas");
 }
 
 export async function moverMarca(id: number, status: string) {
-  await prisma.marca.update({ where: { id }, data: { status } });
+  const usuario = await exigirUsuario();
+  await prisma.marca.updateMany({ where: { id, usuarioId: usuario.id }, data: { status } });
   revalidarTudo();
   revalidatePath(`/marcas/${id}`);
 }
 
 export async function alternarNaoContatar(id: number, valor: boolean) {
-  await prisma.marca.update({ where: { id }, data: { naoContatar: valor } });
+  const usuario = await exigirUsuario();
+  await prisma.marca.updateMany({
+    where: { id, usuarioId: usuario.id },
+    data: { naoContatar: valor },
+  });
   revalidarTudo();
   revalidatePath(`/marcas/${id}`);
 }
@@ -132,6 +146,7 @@ export async function importarMarcasCSV(
   _estadoAnterior: { ok: number; erros: string[] } | null,
   fd: FormData
 ): Promise<{ ok: number; erros: string[] }> {
+  const usuario = await exigirUsuario();
   let conteudo = texto(fd, "conteudo");
   const arquivo = fd.get("arquivo");
   if (arquivo instanceof File && arquivo.size > 0) {
@@ -161,6 +176,7 @@ export async function importarMarcasCSV(
     }
     await prisma.marca.create({
       data: {
+        usuarioId: usuario.id,
         nome: registro["nome"],
         site: registro["site"] || null,
         instagram: registro["instagram"] || null,
@@ -183,9 +199,12 @@ export async function importarMarcasCSV(
 // ---------- Contatos ----------
 
 export async function criarContato(fd: FormData) {
+  const usuario = await exigirUsuario();
   const marcaId = Number(fd.get("marcaId"));
   const nome = texto(fd, "nome");
   if (!marcaId || !nome) return;
+  const marca = await marcaDoUsuario(marcaId, usuario.id);
+  if (!marca) return;
   await prisma.contato.create({
     data: {
       marcaId,
@@ -197,8 +216,7 @@ export async function criarContato(fd: FormData) {
       verificado: marcado(fd, "verificado"),
     },
   });
-  const marca = await prisma.marca.findUnique({ where: { id: marcaId } });
-  if (marca?.status === "PESQUISADA") {
+  if (marca.status === "PESQUISADA") {
     await prisma.marca.update({ where: { id: marcaId }, data: { status: "CONTATO_ENCONTRADO" } });
   }
   revalidarTudo();
@@ -206,9 +224,14 @@ export async function criarContato(fd: FormData) {
 }
 
 export async function atualizarContato(id: number, fd: FormData) {
+  const usuario = await exigirUsuario();
   const nome = texto(fd, "nome");
   if (!nome) return;
-  const contato = await prisma.contato.update({
+  const contato = await prisma.contato.findFirst({
+    where: { id, marca: { usuarioId: usuario.id } },
+  });
+  if (!contato) return;
+  await prisma.contato.update({
     where: { id },
     data: {
       nome,
@@ -224,7 +247,12 @@ export async function atualizarContato(id: number, fd: FormData) {
 }
 
 export async function excluirContato(id: number) {
-  const contato = await prisma.contato.delete({ where: { id } });
+  const usuario = await exigirUsuario();
+  const contato = await prisma.contato.findFirst({
+    where: { id, marca: { usuarioId: usuario.id } },
+  });
+  if (!contato) return;
+  await prisma.contato.delete({ where: { id } });
   revalidarTudo();
   revalidatePath(`/marcas/${contato.marcaId}`);
 }
@@ -232,23 +260,31 @@ export async function excluirContato(id: number) {
 // ---------- Campanhas ----------
 
 export async function criarCampanha(fd: FormData) {
+  const usuario = await exigirUsuario();
   const nome = texto(fd, "nome");
   if (!nome) return;
   await prisma.campanha.create({
-    data: { nome, pitchBase: opcional(fd, "pitchBase"), periodo: opcional(fd, "periodo") },
+    data: {
+      usuarioId: usuario.id,
+      nome,
+      pitchBase: opcional(fd, "pitchBase"),
+      periodo: opcional(fd, "periodo"),
+    },
   });
   revalidatePath("/campanhas");
   revalidatePath("/mensagens");
 }
 
 export async function alternarCampanha(id: number, ativa: boolean) {
-  await prisma.campanha.update({ where: { id }, data: { ativa } });
+  const usuario = await exigirUsuario();
+  await prisma.campanha.updateMany({ where: { id, usuarioId: usuario.id }, data: { ativa } });
   revalidatePath("/campanhas");
   revalidatePath("/mensagens");
 }
 
 export async function excluirCampanha(id: number) {
-  await prisma.campanha.delete({ where: { id } });
+  const usuario = await exigirUsuario();
+  await prisma.campanha.deleteMany({ where: { id, usuarioId: usuario.id } });
   revalidatePath("/campanhas");
   revalidatePath("/mensagens");
 }
@@ -256,24 +292,32 @@ export async function excluirCampanha(id: number) {
 // ---------- Templates ----------
 
 export async function criarTemplate(fd: FormData) {
+  const usuario = await exigirUsuario();
   const nome = texto(fd, "nome");
   const assunto = texto(fd, "assunto");
   const corpo = texto(fd, "corpo");
   if (!nome || !assunto || !corpo) return;
   await prisma.template.create({
-    data: { nome, etapa: texto(fd, "etapa") || "INICIAL", assunto, corpo },
+    data: {
+      usuarioId: usuario.id,
+      nome,
+      etapa: texto(fd, "etapa") || "INICIAL",
+      assunto,
+      corpo,
+    },
   });
   revalidatePath("/templates");
   revalidatePath("/mensagens");
 }
 
 export async function atualizarTemplate(id: number, fd: FormData) {
+  const usuario = await exigirUsuario();
   const nome = texto(fd, "nome");
   const assunto = texto(fd, "assunto");
   const corpo = texto(fd, "corpo");
   if (!nome || !assunto || !corpo) return;
-  await prisma.template.update({
-    where: { id },
+  await prisma.template.updateMany({
+    where: { id, usuarioId: usuario.id },
     data: { nome, etapa: texto(fd, "etapa") || "INICIAL", assunto, corpo },
   });
   revalidatePath("/templates");
@@ -281,7 +325,8 @@ export async function atualizarTemplate(id: number, fd: FormData) {
 }
 
 export async function excluirTemplate(id: number) {
-  await prisma.template.delete({ where: { id } });
+  const usuario = await exigirUsuario();
+  await prisma.template.deleteMany({ where: { id, usuarioId: usuario.id } });
   revalidatePath("/templates");
   revalidatePath("/mensagens");
 }
@@ -302,6 +347,9 @@ export async function registrarInteracao(dados: {
   corpo?: string | null;
   resultado?: string | null;
 }) {
+  const usuario = await exigirUsuario();
+  const marca = await marcaDoUsuario(dados.marcaId, usuario.id);
+  if (!marca) return;
   await prisma.interacao.create({
     data: {
       marcaId: dados.marcaId,
@@ -348,14 +396,21 @@ export interface ResumoDescoberta {
 
 const MAX_SITES_POR_RODADA = 10;
 
-async function salvarDescoberta(res: ResultadoScrape, marcaIdExistente?: number): Promise<ResumoDescoberta> {
+async function salvarDescoberta(
+  usuarioId: number,
+  res: ResultadoScrape,
+  marcaIdExistente?: number
+): Promise<ResumoDescoberta> {
   const hostname = new URL(res.site).hostname.replace(/^www\./, "");
 
   let marca =
     marcaIdExistente !== undefined
-      ? await prisma.marca.findUnique({ where: { id: marcaIdExistente }, include: { contatos: true } })
+      ? await prisma.marca.findFirst({
+          where: { id: marcaIdExistente, usuarioId },
+          include: { contatos: true },
+        })
       : await prisma.marca.findFirst({
-          where: { site: { contains: hostname } },
+          where: { usuarioId, site: { contains: hostname } },
           include: { contatos: true },
         });
 
@@ -364,6 +419,7 @@ async function salvarDescoberta(res: ResultadoScrape, marcaIdExistente?: number)
   if (!marca) {
     marca = await prisma.marca.create({
       data: {
+        usuarioId,
         nome,
         site: res.site,
         instagram: res.instagram ?? null,
@@ -436,6 +492,7 @@ export async function descobrirMarcas(
   _estadoAnterior: ResumoDescoberta[] | null,
   fd: FormData
 ): Promise<ResumoDescoberta[]> {
+  const usuario = await exigirUsuario();
   const linhas = texto(fd, "sites")
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -443,7 +500,7 @@ export async function descobrirMarcas(
 
   if (linhas.length === 0) return [];
 
-  const config = await lerConfig();
+  const config = await lerConfigDe(usuario.id);
   const hunterApiKey = config["hunter_api_key"]?.trim() || undefined;
 
   const resumos: ResumoDescoberta[] = [];
@@ -456,7 +513,7 @@ export async function descobrirMarcas(
     if ("erro" in res) {
       resumos.push({ site: res.site, ok: false, erro: res.erro, novosContatos: 0, avisos: [] });
     } else {
-      resumos.push(await salvarDescoberta(res));
+      resumos.push(await salvarDescoberta(usuario.id, res));
     }
   }
   for (const linha of linhas.slice(MAX_SITES_POR_RODADA)) {
@@ -474,9 +531,10 @@ export async function descobrirMarcas(
 }
 
 export async function enriquecerMarca(id: number) {
-  const marca = await prisma.marca.findUnique({ where: { id } });
+  const usuario = await exigirUsuario();
+  const marca = await marcaDoUsuario(id, usuario.id);
   if (!marca?.site) return;
-  const config = await lerConfig();
+  const config = await lerConfigDe(usuario.id);
   const res = await rasparSite(marca.site, {
     hunterApiKey: config["hunter_api_key"]?.trim() || undefined,
   });
@@ -485,7 +543,7 @@ export async function enriquecerMarca(id: number) {
       data: { marcaId: id, tipo: "NOTA", resultado: `Descoberta automática falhou: ${res.erro}.` },
     });
   } else {
-    await salvarDescoberta(res, id);
+    await salvarDescoberta(usuario.id, res, id);
   }
   revalidarTudo();
   revalidatePath(`/marcas/${id}`);
@@ -504,10 +562,16 @@ export async function garimparHashtags(
   _estadoAnterior: ResultadoGarimpo | null,
   fd: FormData
 ): Promise<ResultadoGarimpo> {
-  const config = await lerConfig();
+  const usuario = await exigirUsuario();
+  const config = await lerConfigDe(usuario.id);
   const token = config["apify_api_token"]?.trim();
   if (!token) {
-    return { ok: false, erro: "configure o token da API do Apify nas Configurações", posts: 0, mencoes: [] };
+    return {
+      ok: false,
+      erro: "configure o token da API do Apify nas Configurações",
+      posts: 0,
+      mencoes: [],
+    };
   }
 
   const hashtags = texto(fd, "hashtags")
@@ -530,7 +594,8 @@ export async function importarPerfisApify(
   _estadoAnterior: ResumoDescoberta[] | null,
   fd: FormData
 ): Promise<ResumoDescoberta[]> {
-  const config = await lerConfig();
+  const usuario = await exigirUsuario();
+  const config = await lerConfigDe(usuario.id);
   const token = config["apify_api_token"]?.trim();
   if (!token) {
     return [
@@ -567,12 +632,13 @@ export async function importarPerfisApify(
     const handle = "@" + perfil.username;
 
     let marca = await prisma.marca.findFirst({
-      where: { instagram: handle },
+      where: { usuarioId: usuario.id, instagram: handle },
       include: { contatos: true },
     });
     if (!marca) {
       marca = await prisma.marca.create({
         data: {
+          usuarioId: usuario.id,
           nome: perfil.nome ?? handle,
           instagram: handle,
           site: perfil.site ?? null,
@@ -589,7 +655,10 @@ export async function importarPerfisApify(
     const avisos: string[] = [];
 
     if (perfil.email && !marca.contatos.some((c) => c.email === perfil.email)) {
-      const { nome, cargo } = nomeParaEmail({ email: perfil.email, fonte: "Perfil do Instagram (público)" });
+      const { nome, cargo } = nomeParaEmail({
+        email: perfil.email,
+        fonte: "Perfil do Instagram (público)",
+      });
       await prisma.contato.create({
         data: {
           marcaId: marca.id,
@@ -618,7 +687,7 @@ export async function importarPerfisApify(
       if ("erro" in scrape) {
         avisos.push(`site da bio inacessível: ${scrape.erro}`);
       } else {
-        const resumoSite = await salvarDescoberta(scrape, marca.id);
+        const resumoSite = await salvarDescoberta(usuario.id, scrape, marca.id);
         novosContatos += resumoSite.novosContatos;
         avisos.push(...resumoSite.avisos);
         resumos.push({ ...resumoSite, nome: marca.nome, novosContatos, avisos });
@@ -627,7 +696,10 @@ export async function importarPerfisApify(
     }
 
     if (novosContatos > 0 && marca.status === "PESQUISADA") {
-      await prisma.marca.update({ where: { id: marca.id }, data: { status: "CONTATO_ENCONTRADO" } });
+      await prisma.marca.update({
+        where: { id: marca.id },
+        data: { status: "CONTATO_ENCONTRADO" },
+      });
     }
     resumos.push({
       site: perfil.site ?? handle,
@@ -666,12 +738,13 @@ export async function enviarEmailGmail(dados: {
   corpo: string;
   etapa: string;
 }): Promise<{ ok: true } | { ok: false; erro: string }> {
-  const { conectado } = await gmailConectado();
+  const usuario = await exigirUsuario();
+  const { conectado } = await gmailConectado(usuario.id);
   if (!conectado) return { ok: false, erro: "Gmail não conectado — veja as Configurações" };
 
-  const config = await lerConfig();
+  const config = await lerConfigDe(usuario.id);
   const limite = Math.max(1, Number(config["limite_diario"]) || 15);
-  const enviados = await enviosDeHoje();
+  const enviados = await enviosDeHoje(usuario.id);
   if (enviados >= limite) {
     return {
       ok: false,
@@ -679,7 +752,7 @@ export async function enviarEmailGmail(dados: {
     };
   }
 
-  const marca = await prisma.marca.findUnique({ where: { id: dados.marcaId } });
+  const marca = await marcaDoUsuario(dados.marcaId, usuario.id);
   if (!marca) return { ok: false, erro: "marca não encontrada" };
   if (marca.naoContatar) return { ok: false, erro: "marca marcada como não contatar" };
 
@@ -690,7 +763,7 @@ export async function enviarEmailGmail(dados: {
   });
 
   try {
-    const envio = await enviarGmail({
+    const envio = await enviarGmail(usuario.id, {
       para: dados.para,
       assunto: dados.assunto,
       corpo: dados.corpo,
@@ -712,7 +785,6 @@ export async function enviarEmailGmail(dados: {
       await prisma.marca.update({ where: { id: dados.marcaId }, data: { status: novoStatus } });
     }
     revalidarTudo();
-    revalidatePath("/fila");
     revalidatePath(`/marcas/${dados.marcaId}`);
     return { ok: true };
   } catch (e) {
@@ -720,14 +792,20 @@ export async function enviarEmailGmail(dados: {
   }
 }
 
-export async function checarRespostas(): Promise<{ ok: boolean; erro?: string; respostas: number; checadas: number }> {
-  const { conectado, email } = await gmailConectado();
+export async function checarRespostas(): Promise<{
+  ok: boolean;
+  erro?: string;
+  respostas: number;
+  checadas: number;
+}> {
+  const usuario = await exigirUsuario();
+  const { conectado, email } = await gmailConectado(usuario.id);
   if (!conectado || !email) {
     return { ok: false, erro: "Gmail não conectado", respostas: 0, checadas: 0 };
   }
 
   const marcas = await prisma.marca.findMany({
-    where: { status: { in: ["EMAIL_ENVIADO", "FOLLOW_UP"] } },
+    where: { usuarioId: usuario.id, status: { in: ["EMAIL_ENVIADO", "FOLLOW_UP"] } },
     include: {
       interacoes: {
         where: { gmailThreadId: { not: null } },
@@ -745,7 +823,7 @@ export async function checarRespostas(): Promise<{ ok: boolean; erro?: string; r
     if (!threadId) continue;
     checadas++;
     try {
-      if (await threadTemResposta(threadId, email)) {
+      if (await threadTemResposta(usuario.id, threadId, email)) {
         await prisma.interacao.create({
           data: {
             marcaId: marca.id,
@@ -763,7 +841,6 @@ export async function checarRespostas(): Promise<{ ok: boolean; erro?: string; r
   }
 
   revalidarTudo();
-  revalidatePath("/fila");
   return { ok: true, respostas, checadas };
 }
 
@@ -772,8 +849,9 @@ export async function checarRespostasForm() {
 }
 
 export async function desconectarGmail() {
+  const usuario = await exigirUsuario();
   await prisma.config.deleteMany({
-    where: { chave: { in: ["gmail_refresh_token", "gmail_email"] } },
+    where: { usuarioId: usuario.id, chave: { in: ["gmail_refresh_token", "gmail_email"] } },
   });
   revalidatePath("/configuracoes");
   revalidatePath("/fila");
@@ -782,20 +860,27 @@ export async function desconectarGmail() {
 
 // ---------- Configurações ----------
 
+async function lerConfigDe(usuarioId: number): Promise<Record<string, string>> {
+  const itens = await prisma.config.findMany({ where: { usuarioId } });
+  return Object.fromEntries(itens.map((i) => [i.chave, i.valor]));
+}
+
 export async function salvarConfig(fd: FormData) {
+  const usuario = await exigirUsuario();
   const entradas = Array.from(fd.entries()).filter(([chave]) => !chave.startsWith("$"));
   for (const [chave, valor] of entradas) {
     await prisma.config.upsert({
-      where: { chave },
+      where: { usuarioId_chave: { usuarioId: usuario.id, chave } },
       update: { valor: String(valor) },
-      create: { chave, valor: String(valor) },
+      create: { usuarioId: usuario.id, chave, valor: String(valor) },
     });
   }
   revalidatePath("/configuracoes");
+  revalidatePath("/guia");
   revalidatePath("/mensagens");
 }
 
 export async function lerConfig(): Promise<Record<string, string>> {
-  const itens = await prisma.config.findMany();
-  return Object.fromEntries(itens.map((i) => [i.chave, i.valor]));
+  const usuario = await exigirUsuario();
+  return lerConfigDe(usuario.id);
 }

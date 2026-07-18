@@ -7,8 +7,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Usuario {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  nome      String
+  senhaHash String
+  criadoEm  DateTime   @default(now())
+  sessoes   Sessao[]
+  marcas    Marca[]
+  campanhas Campanha[]
+  templates Template[]
+  configs   Config[]
+}
+
+model Sessao {
+  token     String   @id
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEm  DateTime
+  criadoEm  DateTime @default(now())
+}
+
 model Marca {
   id           Int         @id @default(autoincrement())
+  usuarioId    Int
+  usuario      Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   nome         String
   site         String?
   instagram    String?
@@ -26,6 +49,8 @@ model Marca {
   updatedAt    DateTime    @updatedAt
   contatos     Contato[]
   interacoes   Interacao[]
+
+  @@index([usuarioId])
 }
 
 model Contato {
@@ -44,20 +69,28 @@ model Contato {
 
 model Campanha {
   id        Int      @id @default(autoincrement())
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   nome      String
   pitchBase String?
   periodo   String?
   ativa     Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  @@index([usuarioId])
 }
 
 model Template {
   id        Int      @id @default(autoincrement())
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   nome      String
   etapa     String   @default("INICIAL")
   assunto   String
   corpo     String
   createdAt DateTime @default(now())
+
+  @@index([usuarioId])
 }
 
 model Interacao {
@@ -75,6 +108,10 @@ model Interacao {
 }
 
 model Config {
-  chave String @id
-  valor String
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  chave     String
+  valor     String
+
+  @@id([usuarioId, chave])
 }
