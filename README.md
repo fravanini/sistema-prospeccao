@@ -56,14 +56,16 @@ metas) está em **[PLANO.md](./PLANO.md)**.
 
 ## Como rodar
 
-Pré-requisito: Node.js 20+.
+Pré-requisitos: Node.js 20+ e um banco PostgreSQL (local ou um projeto grátis no Neon).
 
 ```bash
-cp .env.example .env     # configura o caminho do banco SQLite
+cp .env.example .env     # aponte DATABASE_URL para um Postgres (local ou Neon)
 npm install
-npm run setup            # cria o banco e gera o client
+npm run setup            # aplica as migrações e gera o client Prisma
 npm run dev
 ```
+
+Para produção (URL pública, sem terminal), veja **[DEPLOY.md](./DEPLOY.md)**.
 
 Abra http://localhost:3000, **crie sua conta** em /registro (os templates da cadência já
 vêm com ela), selecione seu nicho no **Guia**, preencha **Configurações** (nome, @,
@@ -83,8 +85,8 @@ métricas, mídia kit) e comece a cadastrar marcas.
 
 ## Stack
 
-Next.js (App Router) · TypeScript · Tailwind CSS 4 · Prisma + SQLite (banco em arquivo
-local, `prisma/dev.db` — fora do git).
+Next.js (App Router) · TypeScript · Tailwind CSS 4 · Prisma + PostgreSQL.
+Deploy na Vercel + Neon (Postgres serverless) — passo a passo em **[DEPLOY.md](./DEPLOY.md)**.
 
 ## Fluxo de trabalho sugerido
 

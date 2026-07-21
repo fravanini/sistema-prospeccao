@@ -410,7 +410,7 @@ async function salvarDescoberta(
           include: { contatos: true },
         })
       : await prisma.marca.findFirst({
-          where: { usuarioId, site: { contains: hostname } },
+          where: { usuarioId, site: { contains: hostname, mode: "insensitive" } },
           include: { contatos: true },
         });
 

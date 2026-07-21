@@ -19,7 +19,7 @@ export default async function MarcasPage({
   const marcas = await prisma.marca.findMany({
     where: {
       usuarioId: usuario.id,
-      ...(q ? { nome: { contains: q } } : {}),
+      ...(q ? { nome: { contains: q, mode: "insensitive" as const } } : {}),
       ...(categoria ? { categoria } : {}),
       ...(status ? { status } : {}),
     },
